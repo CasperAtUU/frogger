@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Canal Hop</title>
+<style>
+  :root {
+    --ink: #17342f;
+    --paper: #f8e7b7;
+    --sun: #efad5b;
+    --coral: #d95b4f;
+    --leaf: #4f8f5a;
+    --deep-leaf: #285948;
+    --wood: #85513d;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 0%, #f0bf76 0 13%, transparent 34%),
+      #28433a;
+    font-family: Georgia, "Times New Roman", serif;
+    color: var(--ink);
+  }
+
+  .game-shell {
+    position: relative;
+    width: min(96vw, 1040px);
+    aspect-ratio: 4 / 3;
+    border: 12px solid #3c5c4b;
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow:
+      0 22px 0 rgba(17, 36, 31, 0.34),
+      0 34px 68px rgba(12, 26, 22, 0.42),
+      inset 0 0 0 3px #f4c475;
+    background: #153b3e;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 30px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 180ms ease, visibility 180ms ease;
+    background: rgba(24, 48, 43, 0.26);
+  }
+
+  .overlay.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .panel {
+    width: min(88%, 570px);
+    text-align: center;
+    padding: clamp(24px, 4vw, 44px);
+    background: #f7dfaa;
+    border: 4px solid #244f43;
+    border-radius: 18px;
+    box-shadow:
+      0 9px 0 #81503c,
+      inset 0 0 0 4px #ffe9bf;
+    transform: translateY(8px) rotate(-0.6deg);
+  }
+
+  .panel .eyebrow {
+    margin: 0 0 7px;
+    color: #b04e43;
+    font-size: clamp(11px, 1.5vw, 15px);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .panel h1 {
+    margin: 0;
+    color: #205746;
+    font-size: clamp(42px, 7vw, 78px);
+    line-height: 0.94;
+    letter-spacing: 0.03em;
+    text-shadow: 2px 3px 0 #f2aa62;
+  }
+
+  .panel h2 {
+    margin: 0 0 13px;
+    color: #205746;
+    font-size: clamp(32px, 5vw, 52px);
+    line-height: 1;
+  }
+
+  .panel p {
+    max-width: 390px;
+    margin: 18px auto 24px;
+    font-size: clamp(16px, 2.2vw, 21px);
+    line-height: 1.35;
+  }
+
+  .panel .little-note {
+    margin-top: 18px;
+    margin-bottom: 0;
+    color: #70463b;
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  button {
+    border: 0;
+    border-radius: 999px;
+    padding: 14px 32px 15px;
+    min-width: 148px;
+    cursor: pointer;
+    font: 700 clamp(17px, 2.2vw, 22px) Georgia, "Times New Roman", serif;
+    letter-spacing: 0.04em;
+    color: #fff2c8;
+    background: #c75347;
+    box-shadow:
+      0 5px 0 #7a3f36,
+      inset 0 2px 0 rgba(255,255,255,0.25);
+    transition: transform 100ms ease, box-shadow 100ms ease, filter 100ms ease;
+  }
+
+  button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  button:active { transform: translateY(4px); box-shadow: 0 1px 0 #7a3f36; }
+  button:focus-visible { outline: 4px solid #245d8e; outline-offset: 4px; }
+
+  .game-over-score {
+    display: inline-block;
+    margin: 3px 0 18px;
+    padding: 7px 16px;
+    border: 2px solid #d7a15e;
+    border-radius: 10px;
+    background: #fff0c7;
+    color: #77483b;
+    font-weight: 700;
+  }
+
+  @media (max-width: 620px) {
+    body { background: #28433a; }
+    .game-shell {
+      width: 100vw;
+      border-width: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .overlay { padding: 18px; }
+    .panel { width: 94%; }
+  }
+</style>
+</head>
+<body>
+  <main class="game-shell" aria-label="Canal Hop arcade game">
+    <canvas id="game" width="960" height="720" aria-label="Canal Hop game canvas"></canvas>
+
+    <section class="overlay show" id="titleOverlay" aria-label="Title screen">
+      <div class="panel">
+        <p class="eyebrow">Summer arcade by the canal</p>
+        <h1>CANAL HOP</h1>
+        <p>Use the arrow keys to guide the frog home.</p>
+        <button id="playButton" type="button">Play</button>
+        <p class="little-note">Five cosy berths. A lively road. Absolutely no music.</p>
+      </div>
+    </section>
+
+    <section class="overlay" id="gameOverOverlay" aria-label="Game over">
+      <div class="panel">
+        <p class="eyebrow">The evening traffic wins this one</p>
+        <h2>GAME OVER</h2>
+        <div class="game-over-score">Final score: <span id="finalScore">0</span> · Best: <span id="finalBest">0</span></div>
+        <br />
+        <button id="restartButton" type="button">Hop again</button>
+      </div>
+    </section>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Canvas setup and shared constants
+  // ---------------------------------------------------------------------------
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const titleOverlay = document.getElementById("titleOverlay");
+  const gameOverOverlay = document.getElementById("gameOverOverlay");
+  const playButton = document.getElementById("playButton");
+  const restartButton = document.getElementById("restartButton");
+  const finalScore = document.getElementById("finalScore");
+  const finalBest = document.getElementById("finalBest");
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const TILE = 48;
+  const TOP = 72;
+  const ROWS = 13;
+  const START_ROW = 12;
+  const START_X = 10 * TILE + TILE / 2;
+  const START_Y = TOP + START_ROW * TILE + TILE / 2;
+  const HOME_WIDTH = 78;
+  const HOME_CENTERS = [2, 6, 10, 14, 18].map(col => col * TILE + TILE / 2);
+
+  const ROAD_ROWS = new Set([6, 7, 8, 9]);
+  const RIVER_ROWS = new Set([1, 2, 3, 4]);
+
+  const palette = {
+    ink: "#17342f",
+    cream: "#f8e7b7",
+    butter: "#f4c475",
+    sun: "#efad5b",
+    coral: "#d95b4f",
+    rose: "#d97767",
+    sky: "#e6a968",
+    deepLeaf: "#285948",
+    leaf: "#4f8f5a",
+    mint: "#92c47c",
+    grass: "#6fa85c",
+    grassDark: "#427d4c",
+    water: "#287d91",
+    waterDark: "#195a6d",
+    waterLight: "#82d0cf",
+    road: "#453a36",
+    roadEdge: "#d1a45e",
+    wood: "#85513d",
+    darkWood: "#5c382d",
+    bark: "#bd7547",
+    turtle: "#406f57",
+    turtleShell: "#7ea35d",
+    wheel: "#25312e"
+  };
+
+  // Stable, slightly hand-drawn texture: deterministic rather than flickering.
+  const grassSpecks = Array.from({ length: 340 }, (_, i) => ({
+    x: (i * 83 + (i * i * 17)) % W,
+    y: (i * 47 + (i * i * 23)) % H,
+    r: 1 + (i % 3) * 0.45,
+    hue: i % 4
+  }));
+
+  const state = {
+    mode: "title", // title | ready | playing | dying | home | roundclear | gameover
+    score: 0,
+    highScore: loadHighScore(),
+    level: 1,
+    lives: 4,
+    homes: Array(HOME_CENTERS.length).fill(false),
+    lanes: [],
+    // Cached by row so collision checks do not scan all lanes every frame.
+    laneByRow: Array(ROWS).fill(null),
+    elapsed: 0,
+    timer: 0,
+    deathLabel: "",
+    inputBuffer: null,
+    // Pace system: the frog gets a limited amount of thinking time between hops.
+    hurryElapsed: 0,
+    hurryLimit: 7.4,
+    particles: [],
+    lastFrame: performance.now()
+  };
+
+  const frog = {
+    x: START_X,
+    y: START_Y,
+    facing: "up",
+    hop: null,
+    deathSpin: 0
+  };
+
+  const VEHICLE_COLORS = ["#d95b4f", "#efae55", "#3f8b8b", "#bc6d8e", "#72965b"];
+
+  // The heron is a telegraphed, occasional pursuer: it marks a target first,
+  // then swoops at that fixed spot. Moving one tile is always enough to escape.
+  const heron = {
+    phase: "perched", // perched | warning | swoop | retreat
+    timer: 0,
+    elapsed: 0,
+    x: W + 80,
+    y: TOP + 20,
+    fromX: W + 80,
+    fromY: TOP + 20,
+    targetX: W / 2,
+    targetY: START_Y,
+    exitX: W + 80,
+    exitY: TOP + 18
+  };
+
+  // ---------------------------------------------------------------------------
+  // High score: localStorage is optional, so the game also works in restrictive
+  // browser privacy modes.
+  // ---------------------------------------------------------------------------
+  function loadHighScore() {
+    try {
+      return Number(localStorage.getItem("canalHopHighScore") || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function saveHighScore() {
+    try {
+      localStorage.setItem("canalHopHighScore", String(state.highScore));
+    } catch {
+      // Intentionally ignored: the current-session score still works.
+    }
+  }
+
+  function addScore(points) {
+    state.score += points;
+    if (state.score > state.highScore) {
+      state.highScore = state.score;
+      saveHighScore();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Level composition. Each lane uses original, simple vector sprites rather
+  // than external images. Higher rounds multiply lane speeds and shift some
+  // starting positions, keeping the patterns readable but less forgiving.
+  // ---------------------------------------------------------------------------
+  const laneTemplates = [
+    {
+      row: 1, kind: "river", speed: -49, platform: "log",
+      items: [
+        { x: 30, w: 166, accent: 0 }, { x: 284, w: 145, accent: 1 },
+        { x: 590, w: 188, accent: 2 }, { x: 848, w: 150, accent: 3 }
+      ]
+    },
+    {
+      row: 2, kind: "river", speed: 72, platform: "turtles",
+      items: [
+        { x: -95, w: 140, accent: 0 }, { x: 155, w: 126, accent: 1 },
+        { x: 412, w: 154, accent: 2 }, { x: 724, w: 130, accent: 3 }
+      ]
+    },
+    {
+      row: 3, kind: "river", speed: -42, platform: "barge",
+      items: [
+        { x: 16, w: 202, accent: 0 }, { x: 370, w: 178, accent: 1 },
+        { x: 690, w: 215, accent: 2 }
+      ]
+    },
+    {
+      row: 4, kind: "river", speed: 60, platform: "log",
+      items: [
+        { x: -150, w: 180, accent: 3 }, { x: 170, w: 140, accent: 2 },
+        { x: 442, w: 170, accent: 1 }, { x: 763, w: 150, accent: 0 }
+      ]
+    },
+    {
+      row: 6, kind: "road", speed: -98, vehicle: "car",
+      items: [
+        { x: 18, w: 76, accent: 0, type: "taxi" },
+        { x: 210, w: 52, accent: 1, type: "scooter" },
+        { x: 410, w: 88, accent: 2, type: "car" },
+        { x: 655, w: 70, accent: 3, type: "van" },
+        { x: 865, w: 56, accent: 4, type: "scooter" }
+      ]
+    },
+    {
+      row: 7, kind: "road", speed: 126, vehicle: "truck",
+      items: [
+        { x: -75, w: 112, accent: 0, type: "truck" },
+        { x: 232, w: 86, accent: 1, type: "van" },
+        { x: 505, w: 132, accent: 2, type: "truck" },
+        { x: 823, w: 74, accent: 3, type: "cargoBike" }
+      ]
+    },
+    {
+      row: 8, kind: "road", speed: -76, vehicle: "bus",
+      items: [
+        { x: 55, w: 170, accent: 0, type: "bus" },
+        { x: 400, w: 122, accent: 1, type: "tram" },
+        { x: 696, w: 164, accent: 2, type: "bus" }
+      ]
+    },
+    {
+      row: 9, kind: "road", speed: 112, vehicle: "car",
+      items: [
+        { x: -110, w: 50, accent: 2, type: "scooter" },
+        { x: 92, w: 78, accent: 3, type: "taxi" },
+        { x: 338, w: 86, accent: 4, type: "van" },
+        { x: 580, w: 70, accent: 0, type: "car" },
+        { x: 820, w: 54, accent: 1, type: "scooter" }
+      ]
+    }
+  ];
+
+  function buildLanes(level) {
+    const speedGain = 1 + (level - 1) * 0.115;
+    return laneTemplates.map((template, laneIndex) => {
+      const offset = level > 1 ? ((level - 1) * (laneIndex % 2 ? 27 : -19)) % 92 : 0;
+      return {
+        row: template.row,
+        kind: template.kind,
+        platform: template.platform,
+        vehicle: template.vehicle,
+        speed: template.speed * speedGain,
+        // Turtle groups use their own clocks so their dives are staggered rather
+        // than turning one whole lane into a surprise trap.
+        diveClock: 0,
+        entities: template.items.map((item, index) => ({
+          x: item.x + offset,
+          w: item.w,
+          accent: item.accent,
+          type: item.type || template.vehicle,
+          phase: (index * 0.83 + laneIndex * 0.39) % (Math.PI * 2),
+          diveOffset: template.platform === "turtles" ? index * 1.38 : 0
+        }))
+      };
+    });
+  }
+
+  function setLanes(level) {
+    state.lanes = buildLanes(level);
+    state.laneByRow.fill(null);
+    for (const lane of state.lanes) {
+      state.laneByRow[lane.row] = lane;
+    }
+  }
+
+  function laneY(row) {
+    return TOP + row * TILE;
+  }
+
+  // The idle penalty becomes a little tighter on later rounds, but it always
+  // leaves enough time to read the traffic and choose a route.
+  function getHurryLimit() {
+    return Math.max(5.15, 7.4 - (state.level - 1) * 0.28);
+  }
+
+  function resetHurryClock() {
+    state.hurryElapsed = 0;
+    state.hurryLimit = getHurryLimit();
+  }
+
+  // Turtle groups telegraph their dive with a short bob-and-bubble phase.
+  // "usable" is deliberately tied to what is visibly above water.
+  function getTurtleDive(lane, entity) {
+    const cycle = Math.max(8.6, 10.9 - (state.level - 1) * 0.22);
+    const warningTime = 0.85;
+    const submergedTime = 2.0;
+    const risingTime = 0.58;
+    const surfaceTime = cycle - warningTime - submergedTime - risingTime;
+    const phase = (lane.diveClock + entity.diveOffset) % cycle;
+
+    if (phase < surfaceTime) {
+      return { state: "surface", depth: 0, alpha: 1, usable: true };
+    }
+
+    if (phase < surfaceTime + warningTime) {
+      const t = (phase - surfaceTime) / warningTime;
+      return { state: "warning", depth: 0.12 + t * 0.42, alpha: 1 - t * 0.16, usable: true };
+    }
+
+    if (phase < surfaceTime + warningTime + submergedTime) {
+      return { state: "submerged", depth: 1, alpha: 0, usable: false };
+    }
+
+    const t = (phase - surfaceTime - warningTime - submergedTime) / risingTime;
+    return {
+      state: "rising",
+      depth: 1 - t,
+      alpha: 0.35 + t * 0.65,
+      usable: t > 0.52
+    };
+  }
+
+  function frogRow() {
+    return Math.round((frog.y - (TOP + TILE / 2)) / TILE);
+  }
+
+  function getLane(row) {
+    return state.laneByRow[row] || null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Input. A one-move buffer makes fast arrow-key play responsive while preserving
+  // the deliberate, tile-sized hop animation.
+  // ---------------------------------------------------------------------------
+  const keyToDirection = {
+    ArrowUp: { x: 0, y: -1, name: "up" },
+    ArrowDown: { x: 0, y: 1, name: "down" },
+    ArrowLeft: { x: -1, y: 0, name: "left" },
+    ArrowRight: { x: 1, y: 0, name: "right" }
+  };
+
+  window.addEventListener("keydown", event => {
+    if (event.key === "Enter" && state.mode === "title") {
+      startGame();
+      return;
+    }
+    if (event.key === "Enter" && state.mode === "gameover") {
+      startGame();
+      return;
+    }
+
+    const direction = keyToDirection[event.key];
+    if (!direction) return;
+
+    event.preventDefault();
+    if (state.mode !== "playing") return;
+
+    if (frog.hop) {
+      state.inputBuffer = direction;
+    } else {
+      beginHop(direction);
+    }
+  }, { passive: false });
+
+  function beginHop(direction) {
+    const targetX = frog.x + direction.x * TILE;
+    const targetY = frog.y + direction.y * TILE;
+    const minY = TOP + TILE / 2;
+    const maxY = TOP + (ROWS - 1) * TILE + TILE / 2;
+
+    if (targetX < TILE / 2 || targetX > W - TILE / 2 || targetY < minY || targetY > maxY) {
+      state.inputBuffer = null;
+      return;
+    }
+
+    frog.facing = direction.name;
+    resetHurryClock();
+    frog.hop = {
+      fromX: frog.x,
+      fromY: frog.y,
+      toX: targetX,
+      toY: targetY,
+      elapsed: 0,
+      duration: 0.155
+    };
+    state.inputBuffer = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Game state transitions
+  // ---------------------------------------------------------------------------
+  function resetFrog() {
+    frog.x = START_X;
+    frog.y = START_Y;
+    frog.facing = "up";
+    frog.hop = null;
+    frog.deathSpin = 0;
+    state.inputBuffer = null;
+    resetHurryClock();
+  }
+
+  function resetHeron(delay = null) {
+    heron.phase = "perched";
+    heron.elapsed = 0;
+    heron.timer = delay ?? Math.max(5.7, 8.7 - (state.level - 1) * 0.42);
+    heron.x = W + 80;
+    heron.y = TOP + 18;
+    heron.fromX = heron.x;
+    heron.fromY = heron.y;
+    heron.exitX = W + 80;
+    heron.exitY = TOP + 18;
+  }
+
+  function startGame() {
+    titleOverlay.classList.remove("show");
+    gameOverOverlay.classList.remove("show");
+    state.score = 0;
+    state.level = 1;
+    state.lives = 4;
+    state.homes = Array(HOME_CENTERS.length).fill(false);
+    setLanes(state.level);
+    state.mode = "ready";
+    state.timer = 1.05;
+    state.particles = [];
+    resetHeron();
+    resetFrog();
+  }
+
+  function beginNextRound() {
+    state.level += 1;
+    state.homes = Array(HOME_CENTERS.length).fill(false);
+    setLanes(state.level);
+    state.mode = "ready";
+    state.timer = 1.15;
+    resetHeron();
+    resetFrog();
+  }
+
+  function loseLife(reason) {
+    if (state.mode !== "playing") return;
+    state.lives -= 1;
+    state.mode = "dying";
+    state.timer = 0.78;
+    state.deathLabel = reason;
+    frog.deathSpin = 0;
+    state.inputBuffer = null;
+    resetHeron(3.4);
+    spawnParticles(frog.x, frog.y, reason === "SPLASH!" ?
+      ["#8bd8d4", "#e3f1cd", "#287d91"] :
+      ["#f8e7b7", "#e26d56", "#f1b55e"], 18, 120);
+  }
+
+  function reachHome(index) {
+    state.homes[index] = true;
+    addScore(240 + state.level * 35);
+    state.mode = "home";
+    state.timer = 0.72;
+    resetHeron(3.2);
+    spawnParticles(HOME_CENTERS[index], laneY(0) + 25,
+      ["#f8e7b7", "#efad5b", "#d95b4f", "#96c777"], 20, 105);
+  }
+
+  function clearRound() {
+    addScore(420 + state.level * 80);
+    state.mode = "roundclear";
+    state.timer = 1.45;
+    spawnParticles(W / 2, H / 2, ["#f8e7b7", "#efad5b", "#d95b4f", "#92c47c"], 46, 165);
+  }
+
+  function finishGame() {
+    state.mode = "gameover";
+    finalScore.textContent = String(state.score);
+    finalBest.textContent = String(state.highScore);
+    gameOverOverlay.classList.add("show");
+  }
+
+  playButton.addEventListener("click", startGame);
+  restartButton.addEventListener("click", startGame);
+
+  // ---------------------------------------------------------------------------
+  // Simulation: entity movement, frog hop, collisions, river support, and
+  // level progression. Hitboxes are intentionally smaller than the art, so the
+  // game looks generous rather than punishing.
+  // ---------------------------------------------------------------------------
+  function updateLanes(dt, motionScale = 1) {
+    for (const lane of state.lanes) {
+      const speed = lane.speed * motionScale;
+
+      // The dive timer runs only during active play: it never removes a platform
+      // while a Ready/Home/Round Cleared card is covering the action.
+      if (lane.platform === "turtles" && state.mode === "playing") {
+        lane.diveClock += dt;
+      }
+
+      const entities = lane.entities;
+      for (let i = 0; i < entities.length; i++) {
+        entities[i].x += speed * dt;
+      }
+
+      for (let i = 0; i < entities.length; i++) {
+        const entity = entities[i];
+
+        // This queue scan deliberately avoids filter/map allocations in the game
+        // loop. It only considers already off-screen traffic, so every respawn
+        // remains beyond the correct edge instead of materialising mid-lane.
+        if (lane.kind === "road" && speed > 0 && entity.x > W + 48) {
+          let queueTail = Infinity;
+          for (let j = 0; j < entities.length; j++) {
+            if (j !== i && entities[j].x < 0 && entities[j].x < queueTail) {
+              queueTail = entities[j].x;
+            }
+          }
+          const gap = 72 + (entity.accent % 3) * 14;
+          entity.x = queueTail === Infinity
+            ? -entity.w - 72
+            : queueTail - entity.w - gap;
+        } else if (lane.kind === "road" && speed < 0 && entity.x + entity.w < -48) {
+          let queueTail = -Infinity;
+          for (let j = 0; j < entities.length; j++) {
+            const other = entities[j];
+            if (j !== i && other.x + other.w > W && other.x + other.w > queueTail) {
+              queueTail = other.x + other.w;
+            }
+          }
+          const gap = 72 + (entity.accent % 3) * 14;
+          entity.x = queueTail === -Infinity
+            ? W + 72
+            : queueTail + gap;
+        } else if (lane.kind !== "road" && speed > 0 && entity.x > W + 42) {
+          entity.x = -entity.w - 36;
+        } else if (lane.kind !== "road" && speed < 0 && entity.x + entity.w < -42) {
+          entity.x = W + 36;
+        }
+      }
+    }
+  }
+
+  function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  function findPlatform(lane) {
+    const frogLeft = frog.x - 12;
+    const frogRight = frog.x + 12;
+    return lane.entities.find(entity => {
+      if (lane.platform === "turtles" && !getTurtleDive(lane, entity).usable) {
+        return false;
+      }
+      const safeLeft = entity.x + 9;
+      const safeRight = entity.x + entity.w - 9;
+      return frogRight > safeLeft && frogLeft < safeRight;
+    }) || null;
+  }
+
+  function hitsVehicle(lane) {
+    const fy = frog.y - 13;
+    const fx = frog.x - 11;
+
+    for (const entity of lane.entities) {
+      const type = entity.type || lane.vehicle;
+      let inset = 8;
+      let boxY = laneY(lane.row) + 7;
+      let boxH = 33;
+
+      // Narrow traffic is drawn and hit-tested narrowly, keeping scooters and
+      // cargo bikes readable hazards instead of invisible full-lane walls.
+      if (type === "bus" || type === "tram") {
+        inset = 10;
+      } else if (type === "scooter") {
+        inset = 7;
+        boxY += 12;
+        boxH = 19;
+      } else if (type === "cargoBike") {
+        inset = 8;
+        boxY += 10;
+        boxH = 22;
+      } else if (type === "van" || type === "truck") {
+        inset = 9;
+        boxY += 4;
+        boxH = 28;
+      }
+
+      const boxX = entity.x + inset;
+      const boxW = entity.w - inset * 2;
+      if (rectsOverlap(fx, fy, 22, 26, boxX, boxY, boxW, boxH)) return true;
+    }
+    return false;
+  }
+
+  function checkLanding() {
+    const row = frogRow();
+
+    if (row === 0) {
+      const index = HOME_CENTERS.findIndex(center => Math.abs(frog.x - center) < HOME_WIDTH / 2);
+      if (index >= 0 && !state.homes[index]) {
+        reachHome(index);
+      } else {
+        loseLife(index >= 0 ? "BERTH TAKEN!" : "MISSED DOCK!");
+      }
+      return;
+    }
+
+    const lane = getLane(row);
+    if (!lane) return;
+
+    if (lane.kind === "road" && hitsVehicle(lane)) {
+      loseLife("HONK!");
+    } else if (lane.kind === "river" && !findPlatform(lane)) {
+      loseLife("SPLASH!");
+    }
+  }
+
+  function updateHurryClock(dt) {
+    state.hurryElapsed += dt;
+    if (state.hurryElapsed >= state.hurryLimit) {
+      loseLife("TOO SLOW!");
+    }
+  }
+
+  function updateFrog(dt) {
+    if (frog.hop) {
+      frog.hop.elapsed += dt;
+      const p = Math.min(1, frog.hop.elapsed / frog.hop.duration);
+      const ease = 1 - Math.pow(1 - p, 3);
+      frog.x = frog.hop.fromX + (frog.hop.toX - frog.hop.fromX) * ease;
+      frog.y = frog.hop.fromY + (frog.hop.toY - frog.hop.fromY) * ease;
+
+      if (p >= 1) {
+        frog.x = frog.hop.toX;
+        frog.y = frog.hop.toY;
+        frog.hop = null;
+        checkLanding();
+      }
+      return;
+    }
+
+    const row = frogRow();
+    const lane = getLane(row);
+
+    // River logic: a safe platform carries the frog at exactly the lane's speed.
+    if (lane && lane.kind === "river") {
+      const platform = findPlatform(lane);
+      if (!platform) {
+        loseLife("SPLASH!");
+        return;
+      }
+      frog.x += lane.speed * dt;
+      if (frog.x < -18 || frog.x > W + 18) {
+        loseLife("SPLASH!");
+        return;
+      }
+    }
+
+    // Road logic is continuous once the frog is standing on the lane.
+    if (lane && lane.kind === "road" && hitsVehicle(lane)) {
+      loseLife("HONK!");
+      return;
+    }
+
+    if (state.inputBuffer && state.mode === "playing") {
+      beginHop(state.inputBuffer);
+    }
+  }
+
+  function startHeronWarning() {
+    // Aim at the tile occupied when the shadow first appears, not at a moving
+    // target. That makes the warning readable and guarantees an escape route.
+    heron.targetX = Math.max(TILE / 2, Math.min(W - TILE / 2,
+      Math.round((frog.x - TILE / 2) / TILE) * TILE + TILE / 2));
+    heron.targetY = Math.max(TOP + TILE / 2, Math.min(TOP + (ROWS - 1) * TILE + TILE / 2,
+      Math.round((frog.y - (TOP + TILE / 2)) / TILE) * TILE + TOP + TILE / 2));
+
+    heron.fromX = heron.targetX < W / 2 ? W + 72 : -72;
+    heron.fromY = TOP + 22;
+    heron.x = heron.fromX;
+    heron.y = heron.fromY;
+    heron.phase = "warning";
+    heron.timer = 0.92;
+    heron.elapsed = 0;
+  }
+
+  function updateHeron(dt) {
+    if (state.mode !== "playing") return;
+
+    if (heron.phase === "perched") {
+      heron.timer -= dt;
+      if (heron.timer <= 0) startHeronWarning();
+      return;
+    }
+
+    if (heron.phase === "warning") {
+      heron.timer -= dt;
+      if (heron.timer <= 0) {
+        heron.phase = "swoop";
+        heron.elapsed = 0;
+      }
+      return;
+    }
+
+    if (heron.phase === "swoop") {
+      heron.elapsed += dt;
+      const p = Math.min(1, heron.elapsed / 0.56);
+      const ease = 1 - Math.pow(1 - p, 3);
+      heron.x = heron.fromX + (heron.targetX - heron.fromX) * ease;
+      heron.y = heron.fromY + (heron.targetY - heron.fromY) * ease - Math.sin(Math.PI * p) * 38;
+
+      const dx = frog.x - heron.x;
+      const dy = frog.y - heron.y;
+      if (p > 0.4 && p < 0.96 && dx * dx + dy * dy < 23 * 23) {
+        loseLife("SNATCHED!");
+        return;
+      }
+
+      if (p >= 1) {
+        heron.phase = "retreat";
+        heron.timer = 0.48;
+        heron.fromX = heron.x;
+        heron.fromY = heron.y;
+        heron.exitX = heron.targetX < W / 2 ? -82 : W + 82;
+        heron.exitY = TOP + 15;
+      }
+      return;
+    }
+
+    // Retreating is visual only: the strike is already over.
+    heron.timer -= dt;
+    const p = Math.max(0, 1 - heron.timer / 0.48);
+    heron.x = heron.fromX + (heron.exitX - heron.fromX) * p;
+    heron.y = heron.fromY + (heron.exitY - heron.fromY) * p - Math.sin(Math.PI * p) * 24;
+    if (heron.timer <= 0) {
+      heron.phase = "perched";
+      heron.timer = Math.max(5.1, 7.4 - (state.level - 1) * 0.35);
+    }
+  }
+
+  function spawnParticles(x, y, colors, count, speed) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.32;
+      const force = speed * (0.35 + Math.random() * 0.75);
+      state.particles.push({
+        x, y,
+        vx: Math.cos(angle) * force,
+        vy: Math.sin(angle) * force - 32,
+        life: 0.45 + Math.random() * 0.5,
+        maxLife: 0.45 + Math.random() * 0.5,
+        size: 2 + Math.random() * 3,
+        color: colors[i % colors.length]
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    // Compact the same array in place instead of allocating a fresh filtered
+    // array every frame, keeping bursts inexpensive on lower-powered laptops.
+    let write = 0;
+    for (let read = 0; read < state.particles.length; read++) {
+      const particle = state.particles[read];
+      particle.life -= dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vy += 95 * dt;
+      if (particle.life > 0) {
+        state.particles[write++] = particle;
+      }
+    }
+    state.particles.length = write;
+  }
+
+  function update(dt) {
+    state.elapsed += dt;
+    updateParticles(dt);
+
+    if (state.mode === "title") {
+      if (!state.lanes.length) setLanes(1);
+      updateLanes(dt, 0.23);
+      return;
+    }
+
+    if (state.mode === "gameover") {
+      updateLanes(dt, 0.18);
+      return;
+    }
+
+    if (state.mode === "ready") {
+      updateLanes(dt);
+      state.timer -= dt;
+      if (state.timer <= 0) state.mode = "playing";
+      return;
+    }
+
+    if (state.mode === "playing") {
+      updateLanes(dt);
+      updateHurryClock(dt);
+      if (state.mode === "playing") updateFrog(dt);
+      if (state.mode === "playing") updateHeron(dt);
+      return;
+    }
+
+    if (state.mode === "dying") {
+      updateLanes(dt, 0.75);
+      frog.deathSpin += dt * 10;
+      state.timer -= dt;
+      if (state.timer <= 0) {
+        if (state.lives <= 0) {
+          finishGame();
+        } else {
+          resetFrog();
+          state.mode = "ready";
+          state.timer = 0.72;
+        }
+      }
+      return;
+    }
+
+    if (state.mode === "home") {
+      updateLanes(dt, 0.65);
+      state.timer -= dt;
+      if (state.timer <= 0) {
+        if (state.homes.every(Boolean)) {
+          clearRound();
+        } else {
+          resetFrog();
+          state.mode = "ready";
+          state.timer = 0.66;
+        }
+      }
+      return;
+    }
+
+    if (state.mode === "roundclear") {
+      updateLanes(dt, 0.35);
+      state.timer -= dt;
+      if (state.timer <= 0) beginNextRound();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Drawing helpers
+  // ---------------------------------------------------------------------------
+  function roundedRect(x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  function fillRoundedRect(x, y, width, height, radius, fill, stroke = null, lineWidth = 1) {
+    roundedRect(x, y, width, height, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) {
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+    }
+  }
+
+  function drawText(text, x, y, size, color, align = "left", weight = "700") {
+    ctx.fillStyle = color;
+    ctx.font = `${weight} ${size}px Georgia, "Times New Roman", serif`;
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+  }
+
+  function drawTopHeader() {
+    ctx.fillStyle = palette.sky;
+    ctx.fillRect(0, 0, W, TOP);
+
+    // A warm, off-centre summer sun and distant roofline.
+    ctx.fillStyle = "#f7d98b";
+    ctx.beginPath();
+    ctx.arc(130, 23, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#315f55";
+    for (let x = -30; x < W + 60; x += 67) {
+      const h = 12 + ((x * 7) % 20 + 20) % 20;
+      ctx.fillRect(x, TOP - h, 53, h);
+      ctx.fillStyle = "#234e46";
+      ctx.fillRect(x + 9, TOP - h - 7, 17, 7);
+      ctx.fillStyle = "#315f55";
+    }
+
+    fillRoundedRect(16, 12, 164, 42, 13, "#f8e7b7", "#275242", 2);
+    drawText("CANAL HOP", 98, 33, 23, palette.ink, "center");
+
+    drawHudTag(202, "SCORE", String(state.score), "#f8e7b7");
+    drawHudTag(352, "BEST", String(state.highScore), "#f5d39c");
+    drawHudTag(502, "ROUND", String(state.level), "#d9ebae");
+
+    fillRoundedRect(650, 12, 174, 42, 13, "#f8e7b7", "#275242", 2);
+    drawText("LIVES", 674, 25, 11, "#765044", "left");
+    for (let i = 0; i < 4; i++) {
+      drawMiniFrog(727 + i * 22, 35, i < state.lives ? "#4d9b5b" : "#d4aa7b");
+    }
+
+    drawHurryTag(836);
+  }
+
+  function drawHudTag(x, label, value, fill) {
+    fillRoundedRect(x, 12, 134, 42, 13, fill, "#275242", 2);
+    drawText(label, x + 14, 25, 10, "#765044", "left");
+    drawText(value, x + 118, 36, 21, palette.ink, "right");
+  }
+
+  function drawHurryTag(x) {
+    const active = state.mode === "playing";
+    const remaining = active
+      ? Math.max(0, 1 - state.hurryElapsed / state.hurryLimit)
+      : 1;
+
+    const color = remaining > 0.52
+      ? "#4f8f5a"
+      : remaining > 0.26
+        ? "#e3a84f"
+        : "#d95b4f";
+
+    fillRoundedRect(x, 12, 108, 42, 13, "#f8e7b7", "#275242", 2);
+    drawText(remaining < 0.26 && active ? "HOP!" : "HURRY", x + 12, 25, 10, "#765044", "left");
+    fillRoundedRect(x + 12, 32, 84, 7, 4, "#d8b777", "#805940", 1);
+    fillRoundedRect(x + 13, 33, Math.max(3, 82 * remaining), 5, 3, color);
+  }
+
+  function drawGrass(y, height, base, dark) {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, y, W, height);
+
+    ctx.fillStyle = dark;
+    for (const speck of grassSpecks) {
+      const sy = y + ((speck.y * 1.91) % height);
+      if (sy < y || sy > y + height) continue;
+      ctx.globalAlpha = 0.35 + (speck.hue * 0.07);
+      ctx.fillRect(speck.x, sy, speck.r, speck.r + 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // A hand-painted edge.
+    ctx.strokeStyle = "#b4d574";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 9]);
+    ctx.beginPath();
+    ctx.moveTo(0, y + 3);
+    ctx.lineTo(W, y + 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawWaterRow(row) {
+    const y = laneY(row);
+    ctx.fillStyle = palette.water;
+    ctx.fillRect(0, y, W, TILE);
+
+    ctx.fillStyle = "#1b667a";
+    ctx.fillRect(0, y + TILE - 5, W, 5);
+
+    // Slow-moving water marks and warm reflected lantern colours.
+    for (let i = 0; i < 13; i++) {
+      const rippleX = ((i * 89 + state.elapsed * (13 + (row % 2) * 6)) % (W + 110)) - 55;
+      const rippleY = y + 11 + ((i * 17) % 26);
+      ctx.strokeStyle = i % 3 === 0 ? "rgba(218, 239, 200, 0.52)" : "rgba(119, 205, 205, 0.40)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(rippleX, rippleY);
+      ctx.quadraticCurveTo(rippleX + 11, rippleY - 3, rippleX + 25, rippleY);
+      ctx.stroke();
+    }
+
+    for (let i = 0; i < 5; i++) {
+      const reflectionX = ((i * 211 + state.elapsed * 8) % (W + 60)) - 30;
+      ctx.fillStyle = i % 2 ? "rgba(244, 196, 117, 0.30)" : "rgba(231, 119, 103, 0.25)";
+      ctx.fillRect(reflectionX, y + 7, 4, 22);
+      ctx.fillRect(reflectionX + 8, y + 16, 3, 16);
+    }
+  }
+
+  function drawRoadRow(row) {
+    const y = laneY(row);
+    ctx.fillStyle = palette.road;
+    ctx.fillRect(0, y, W, TILE);
+
+    ctx.fillStyle = "#302a29";
+    ctx.fillRect(0, y + 3, W, 3);
+    ctx.fillRect(0, y + TILE - 4, W, 4);
+
+    ctx.strokeStyle = palette.roadEdge;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([17, 15]);
+    ctx.beginPath();
+    ctx.moveTo(0, y + TILE / 2);
+    ctx.lineTo(W, y + TILE / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawHomeBank() {
+    const y = laneY(0);
+    drawGrass(y, TILE, "#78ad63", "#447d4c");
+
+    ctx.fillStyle = "#335d49";
+    ctx.fillRect(0, y + 40, W, 8);
+
+    for (let i = 0; i < HOME_CENTERS.length; i++) {
+      drawHomePad(HOME_CENTERS[i], state.homes[i], i);
+    }
+
+    // Little reed clusters between berths.
+    ctx.strokeStyle = "#315f45";
+    ctx.lineWidth = 2;
+    for (let x = 27; x < W; x += 95) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 43);
+      ctx.quadraticCurveTo(x - 3, y + 29, x + 2, y + 18);
+      ctx.moveTo(x + 5, y + 43);
+      ctx.quadraticCurveTo(x + 12, y + 30, x + 10, y + 20);
+      ctx.stroke();
+    }
+  }
+
+  function drawHomePad(center, occupied, index) {
+    const x = center - HOME_WIDTH / 2;
+    const y = laneY(0) + 4;
+
+    fillRoundedRect(x, y + 4, HOME_WIDTH, 35, 13, occupied ? "#cb8f5b" : "#f0c875", "#5f4034", 2);
+    ctx.fillStyle = occupied ? "#af6d4d" : "#fff0bc";
+    ctx.fillRect(x + 12, y + 9, HOME_WIDTH - 24, 12);
+
+    ctx.strokeStyle = "#80513b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 13, y + 29);
+    ctx.lineTo(x + HOME_WIDTH - 13, y + 29);
+    ctx.stroke();
+
+    // A small coloured pennant makes each home feel distinct.
+    const flagColors = ["#d95b4f", "#edaa58", "#4d9b5b", "#4592a1", "#c96361"];
+    ctx.fillStyle = "#5c392e";
+    ctx.fillRect(center - 1, y - 3, 2, 17);
+    ctx.fillStyle = flagColors[index];
+    ctx.beginPath();
+    ctx.moveTo(center + 1, y - 2);
+    ctx.lineTo(center + 17, y + 3);
+    ctx.lineTo(center + 1, y + 8);
+    ctx.closePath();
+    ctx.fill();
+
+    if (occupied) {
+      drawMiniFrog(center, y + 25, "#456f48");
+      ctx.fillStyle = "#f8e7b7";
+      ctx.beginPath();
+      ctx.arc(center + 16, y + 27, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawSafeBanks() {
+    drawGrass(laneY(5), TILE, "#83b868", "#497f4b");
+
+    // Brick towpath
+    const y = laneY(5) + 13;
+    ctx.fillStyle = "#e2ad67";
+    ctx.fillRect(0, y, W, 22);
+    ctx.strokeStyle = "#a86f4f";
+    ctx.lineWidth = 1;
+    for (let x = -10; x < W; x += 54) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 12, y + 22);
+      ctx.moveTo(x + 27, y);
+      ctx.lineTo(x + 39, y + 22);
+      ctx.stroke();
+    }
+
+    drawGrass(laneY(10), TILE, "#79ae61", "#497d4b");
+    drawGrass(laneY(11), TILE, "#84b966", "#4d824e");
+    drawGrass(laneY(12), TILE, "#70a25c", "#3e7748");
+
+    // Bottom start terrace.
+    fillRoundedRect(W / 2 - 112, laneY(12) + 11, 224, 26, 13, "#e1b06b", "#6f4938", 2);
+    ctx.fillStyle = "#f7dd97";
+    ctx.fillRect(W / 2 - 71, laneY(12) + 19, 142, 8);
+    drawText("STARTING PIER", W / 2, laneY(12) + 50, 10, "#e8dfaf", "center");
+  }
+
+  function drawGardenTree(x, groundY, scale) {
+    ctx.save();
+    ctx.translate(x, groundY);
+    ctx.scale(scale, scale);
+
+    ctx.strokeStyle = "#6d4934";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-2, -33);
+    ctx.moveTo(-2, -20);
+    ctx.lineTo(-14, -32);
+    ctx.moveTo(-1, -24);
+    ctx.lineTo(12, -38);
+    ctx.stroke();
+
+    const leafColors = ["#477b4a", "#5b914f", "#7eae57"];
+    for (let i = 0; i < 7; i++) {
+      const angle = i * 0.92;
+      const radius = 14 + (i % 3) * 4;
+      ctx.fillStyle = leafColors[i % leafColors.length];
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * radius, -39 + Math.sin(angle) * 9, 13, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTowpathBench(x, y) {
+    ctx.fillStyle = "#8a5139";
+    ctx.fillRect(x, y, 36, 5);
+    ctx.fillRect(x + 4, y + 6, 3, 9);
+    ctx.fillRect(x + 29, y + 6, 3, 9);
+    ctx.fillStyle = "#e2ae67";
+    ctx.fillRect(x + 2, y - 5, 32, 4);
+  }
+
+  function drawStreetDetails() {
+    // Lamp posts are only on the safe central bank, so they never obscure traffic.
+    for (const x of [57, 905]) {
+      const y = laneY(5);
+      ctx.strokeStyle = "#314a40";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 5);
+      ctx.lineTo(x, y - 11);
+      ctx.quadraticCurveTo(x + 10, y - 15, x + 13, y - 6);
+      ctx.stroke();
+      ctx.fillStyle = "#f7d783";
+      ctx.beginPath();
+      ctx.arc(x + 13, y - 5, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Small trees and benches stay entirely below the road, so they add
+    // character without ever hiding or overlapping traffic.
+    drawGardenTree(42, laneY(12) + 43, 0.76);
+    drawGardenTree(W - 42, laneY(12) + 43, 0.76);
+    drawTowpathBench(214, laneY(10) + 31);
+    drawTowpathBench(700, laneY(10) + 31);
+
+    // Flower boxes at the lower grass border.
+    for (const x of [104, 780]) {
+      fillRoundedRect(x, laneY(10) + 27, 46, 12, 3, "#8a5139", "#5d3a31", 1);
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = i % 2 ? "#f5d16b" : "#d85f58";
+        ctx.beginPath();
+        ctx.arc(x + 7 + i * 8, laneY(10) + 27, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawWorld() {
+    drawTopHeader();
+    drawHomeBank();
+
+    for (let row = 1; row <= 4; row++) drawWaterRow(row);
+    drawSafeBanks();
+    for (let row = 6; row <= 9; row++) drawRoadRow(row);
+    drawStreetDetails();
+
+    // Thin, hand-painted boundaries make tile lanes easy to read.
+    ctx.strokeStyle = "rgba(248,231,183,0.26)";
+    ctx.lineWidth = 1;
+    for (let row = 1; row < ROWS; row++) {
+      ctx.beginPath();
+      ctx.moveTo(0, laneY(row));
+      ctx.lineTo(W, laneY(row));
+      ctx.stroke();
+    }
+  }
+
+  function drawPlatform(lane, entity) {
+    const y = laneY(lane.row) + TILE / 2;
+    const bob = Math.sin(state.elapsed * 2.5 + entity.phase) * 1.4;
+
+    if (lane.platform === "log") {
+      ctx.save();
+      ctx.translate(entity.x, y + bob);
+      fillRoundedRect(0, -13, entity.w, 26, 13, palette.bark, palette.darkWood, 2);
+      ctx.fillStyle = "#e1a05e";
+      ctx.beginPath();
+      ctx.ellipse(12, 0, 7, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6e402f";
+      ctx.lineWidth = 2;
+      for (let x = 33; x < entity.w - 9; x += 33) {
+        ctx.beginPath();
+        ctx.moveTo(x, -9);
+        ctx.quadraticCurveTo(x - 7, 0, x, 9);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#345f45";
+      ctx.beginPath();
+      ctx.ellipse(entity.w - 15, -10, 9, 4, -0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    if (lane.platform === "turtles") {
+      const dive = getTurtleDive(lane, entity);
+      ctx.save();
+      ctx.translate(entity.x, y + bob);
+
+      // A broad ripple is always visible, so a submerged group never feels like
+      // it vanished invisibly beneath the player.
+      ctx.strokeStyle = dive.state === "warning"
+        ? "rgba(248, 231, 183, 0.72)"
+        : "rgba(182, 230, 211, 0.52)";
+      ctx.lineWidth = dive.state === "warning" ? 2.3 : 1.4;
+      ctx.beginPath();
+      ctx.ellipse(entity.w / 2, 13, entity.w / 2 - 5, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      if (dive.state === "submerged") {
+        ctx.fillStyle = "rgba(220, 240, 210, 0.72)";
+        for (let bubble = 0; bubble < 4; bubble++) {
+          const bx = 18 + bubble * ((entity.w - 36) / 3);
+          const by = 5 - ((state.elapsed * 18 + bubble * 9) % 13);
+          ctx.beginPath();
+          ctx.arc(bx, by, 1.6 + (bubble % 2), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        return;
+      }
+
+      ctx.translate(0, dive.depth * 17);
+      ctx.globalAlpha = dive.alpha;
+
+      const count = Math.max(3, Math.floor(entity.w / 38));
+      for (let i = 0; i < count; i++) {
+        const tx = 17 + i * ((entity.w - 33) / (count - 1));
+        const lift = (i % 2 ? 1 : -1);
+        ctx.fillStyle = palette.turtle;
+        ctx.beginPath();
+        ctx.ellipse(tx, lift + 3, 17, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = palette.turtleShell;
+        ctx.beginPath();
+        ctx.ellipse(tx, lift, 12, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "#315a43";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tx - 8, lift);
+        ctx.lineTo(tx + 8, lift);
+        ctx.moveTo(tx, lift - 6);
+        ctx.lineTo(tx, lift + 6);
+        ctx.stroke();
+
+        ctx.fillStyle = "#d3e9b3";
+        ctx.beginPath();
+        ctx.arc(tx + 13, lift - 2, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (dive.state === "warning") {
+        ctx.globalAlpha = 0.86;
+        ctx.fillStyle = "#f8e7b7";
+        for (let bubble = 0; bubble < 3; bubble++) {
+          ctx.beginPath();
+          ctx.arc(entity.w * 0.3 + bubble * 19, -16 - bubble * 3, 2.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+      return;
+    }
+
+    // Market barges are wide, sturdy river platforms with colourful awnings.
+    ctx.save();
+    ctx.translate(entity.x, y + bob);
+    const hullColor = ["#9b5b42", "#426d76", "#8a6b47"][entity.accent % 3];
+    fillRoundedRect(0, -12, entity.w, 24, 9, hullColor, "#51382f", 2);
+    ctx.fillStyle = "#ead397";
+    ctx.fillRect(13, -18, entity.w - 26, 8);
+    ctx.fillStyle = ["#d75f52", "#e5a450", "#5b9b80"][entity.accent % 3];
+    for (let x = 15; x < entity.w - 10; x += 21) {
+      ctx.fillRect(x, -19, 11, 9);
+    }
+    ctx.fillStyle = "#f4dfad";
+    ctx.fillRect(entity.w * 0.55, -26, 3, 17);
+    ctx.fillStyle = "#d95b4f";
+    ctx.beginPath();
+    ctx.moveTo(entity.w * 0.55 + 3, -25);
+    ctx.lineTo(entity.w * 0.55 + 19, -19);
+    ctx.lineTo(entity.w * 0.55 + 3, -14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWheel(x, y, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = palette.wheel;
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#f1d48b";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const angle = rotation + i * (Math.PI * 2 / 3);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * 5, Math.sin(angle) * 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawVehicle(lane, entity) {
+    const y = laneY(lane.row) + 7 + Math.sin(state.elapsed * 5 + entity.phase) * 0.75;
+    const x = entity.x;
+    const movingLeft = lane.speed < 0;
+    const color = VEHICLE_COLORS[entity.accent % VEHICLE_COLORS.length];
+    const wheelTurn = state.elapsed * lane.speed * 0.09;
+    const type = entity.type || lane.vehicle;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    if (type === "scooter") {
+      ctx.strokeStyle = "#4a3430";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(13, 29);
+      ctx.lineTo(entity.w - 14, 29);
+      ctx.lineTo(entity.w - 10, 12);
+      ctx.stroke();
+      fillRoundedRect(12, 23, entity.w - 26, 8, 4, color, "#4a3430", 1.5);
+      ctx.fillStyle = "#f4d99a";
+      ctx.beginPath();
+      ctx.arc(entity.w * 0.52, 15, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#4f6a56";
+      ctx.fillRect(entity.w * 0.45, 18, 9, 7);
+      drawWheel(12, 34, wheelTurn);
+      drawWheel(entity.w - 12, 34, wheelTurn);
+    } else if (type === "cargoBike") {
+      fillRoundedRect(8, 18, entity.w * 0.48, 15, 4, color, "#4a3430", 2);
+      ctx.fillStyle = "#e9d08a";
+      ctx.fillRect(12, 21, entity.w * 0.38, 5);
+      ctx.strokeStyle = "#4a3430";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(entity.w * 0.57, 30);
+      ctx.lineTo(entity.w - 16, 30);
+      ctx.lineTo(entity.w - 11, 13);
+      ctx.stroke();
+      ctx.fillStyle = "#f4d99a";
+      ctx.beginPath();
+      ctx.arc(entity.w * 0.63, 17, 5, 0, Math.PI * 2);
+      ctx.fill();
+      drawWheel(14, 35, wheelTurn);
+      drawWheel(entity.w - 14, 35, wheelTurn);
+    } else if (type === "taxi") {
+      fillRoundedRect(4, 13, entity.w - 8, 20, 8, "#e7b54e", "#4a3430", 2);
+      fillRoundedRect(entity.w * 0.26, 5, entity.w * 0.46, 14, 6, "#f3d08a", "#4a3430", 1.5);
+      ctx.fillStyle = "#5d8e91";
+      ctx.fillRect(entity.w * 0.31, 8, entity.w * 0.15, 8);
+      ctx.fillRect(entity.w * 0.55, 8, entity.w * 0.15, 8);
+      ctx.fillStyle = "#3c453f";
+      for (let cx = 11; cx < entity.w - 12; cx += 8) {
+        ctx.fillRect(cx, 25, 4, 3);
+      }
+      fillRoundedRect(entity.w * 0.43, 2, entity.w * 0.16, 5, 2, "#f8e7b7", "#4a3430", 1);
+      drawWheel(17, 34, wheelTurn);
+      drawWheel(entity.w - 17, 34, wheelTurn);
+    } else if (type === "van") {
+      fillRoundedRect(3, 9, entity.w - 6, 25, 6, color, "#4a3430", 2);
+      ctx.fillStyle = "#5d8e91";
+      fillRoundedRect(entity.w * 0.66, 13, entity.w * 0.20, 9, 2, "#5d8e91", "#4a3430", 1);
+      ctx.fillStyle = "#f8e7b7";
+      ctx.beginPath();
+      ctx.arc(entity.w * 0.34, 22, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#d95b4f";
+      ctx.beginPath();
+      ctx.arc(entity.w * 0.34, 22, 2, 0, Math.PI * 2);
+      ctx.fill();
+      drawWheel(16, 35, wheelTurn);
+      drawWheel(entity.w - 16, 35, wheelTurn);
+    } else if (type === "truck") {
+      fillRoundedRect(3, 12, entity.w * 0.65, 22, 4, color, "#4a3430", 2);
+      fillRoundedRect(entity.w * 0.65, 18, entity.w * 0.29, 16, 4, "#e8c36f", "#4a3430", 2);
+      ctx.fillStyle = "#6a9fa2";
+      ctx.fillRect(entity.w * 0.73, 20, entity.w * 0.12, 7);
+      ctx.fillStyle = "#f8e7b7";
+      ctx.fillRect(12, 17, entity.w * 0.38, 3);
+      drawWheel(17, 35, wheelTurn);
+      drawWheel(entity.w - 19, 35, wheelTurn);
+    } else if (type === "tram") {
+      fillRoundedRect(2, 8, entity.w - 4, 27, 7, "#c8664e", "#4a3430", 2);
+      ctx.fillStyle = "#f7d487";
+      ctx.fillRect(11, 13, entity.w - 22, 9);
+      ctx.fillStyle = "#4e8991";
+      for (let wx = 15; wx < entity.w - 16; wx += 21) {
+        ctx.fillRect(wx, 15, 12, 7);
+      }
+      ctx.strokeStyle = "#ead394";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(entity.w * 0.48, 8);
+      ctx.lineTo(entity.w * 0.54, 1);
+      ctx.lineTo(entity.w * 0.67, 1);
+      ctx.stroke();
+      drawWheel(19, 36, wheelTurn);
+      drawWheel(entity.w - 19, 36, wheelTurn);
+    } else if (type === "bus") {
+      fillRoundedRect(2, 8, entity.w - 4, 27, 7, color, "#4a3430", 2);
+      ctx.fillStyle = "#f4d99a";
+      ctx.fillRect(12, 13, entity.w - 24, 10);
+      ctx.fillStyle = "#4e8991";
+      for (let wx = 16; wx < entity.w - 18; wx += 24) {
+        ctx.fillRect(wx, 15, 14, 7);
+      }
+      ctx.fillStyle = "#f5e9c7";
+      ctx.fillRect(movingLeft ? 5 : entity.w - 10, 26, 5, 5);
+      drawWheel(20, 36, wheelTurn);
+      drawWheel(entity.w - 20, 36, wheelTurn);
+    } else {
+      fillRoundedRect(4, 13, entity.w - 8, 20, 8, color, "#4a3430", 2);
+      fillRoundedRect(entity.w * 0.26, 5, entity.w * 0.46, 14, 6, "#f3d08a", "#4a3430", 1.5);
+      ctx.fillStyle = "#5d8e91";
+      ctx.fillRect(entity.w * 0.31, 8, entity.w * 0.15, 8);
+      ctx.fillRect(entity.w * 0.55, 8, entity.w * 0.15, 8);
+      ctx.fillStyle = movingLeft ? "#f5d46e" : "#f7e3ba";
+      ctx.fillRect(movingLeft ? 4 : entity.w - 9, 19, 5, 5);
+      drawWheel(17, 34, wheelTurn);
+      drawWheel(entity.w - 17, 34, wheelTurn);
+    }
+
+    ctx.restore();
+  }
+
+  function drawEntities() {
+    for (const lane of state.lanes) {
+      for (const entity of lane.entities) {
+        if (lane.kind === "river") drawPlatform(lane, entity);
+        else drawVehicle(lane, entity);
+      }
+    }
+  }
+
+  function drawHeronSprite(x, y, direction, flap) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(direction, 1);
+
+    ctx.fillStyle = "#ece8c7";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 13, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#c7d1bd";
+    ctx.beginPath();
+    ctx.moveTo(-2, 2);
+    ctx.quadraticCurveTo(-27, -12 - flap * 7, -37, 1);
+    ctx.quadraticCurveTo(-16, 12, -1, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#dce3cf";
+    ctx.beginPath();
+    ctx.moveTo(5, 2);
+    ctx.quadraticCurveTo(24, -17 + flap * 7, 38, -2);
+    ctx.quadraticCurveTo(17, 12, 5, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#5b6a5c";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(7, 1);
+    ctx.quadraticCurveTo(11, -12, 17, -22);
+    ctx.stroke();
+
+    ctx.fillStyle = "#f5e8bd";
+    ctx.beginPath();
+    ctx.arc(18, -24, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#d97a4b";
+    ctx.beginPath();
+    ctx.moveTo(23, -25);
+    ctx.lineTo(36, -22);
+    ctx.lineTo(23, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#263a34";
+    ctx.beginPath();
+    ctx.arc(19.5, -25.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHeron() {
+    if (heron.phase === "perched") return;
+
+    if (heron.phase === "warning") {
+      const pulse = 0.7 + Math.sin(state.elapsed * 10) * 0.18;
+      ctx.fillStyle = "rgba(25, 46, 42, 0.22)";
+      ctx.beginPath();
+      ctx.ellipse(heron.targetX, heron.targetY + 14, 19 * pulse, 5.5 * pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(248, 231, 183, 0.90)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(heron.targetX, heron.targetY + 2, 20 + (1 - pulse) * 10, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const direction = heron.fromX < heron.targetX ? 1 : -1;
+      drawHeronSprite(heron.fromX, heron.fromY, direction, Math.sin(state.elapsed * 15));
+      return;
+    }
+
+    const direction = heron.fromX < heron.targetX ? 1 : -1;
+    drawHeronSprite(heron.x, heron.y, direction, Math.sin(state.elapsed * 22));
+  }
+
+  function drawMiniFrog(x, y, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 8, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f6f3c6";
+    ctx.beginPath();
+    ctx.arc(-4, -4, 3.2, 0, Math.PI * 2);
+    ctx.arc(4, -4, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.ink;
+    ctx.beginPath();
+    ctx.arc(-3.5, -4, 1.2, 0, Math.PI * 2);
+    ctx.arc(4.5, -4, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFrog() {
+    if (state.mode === "home" && state.timer < 0.55) return;
+
+    let hopAmount = 0;
+    let scaleX = 1;
+    let scaleY = 1;
+
+    if (frog.hop) {
+      const p = Math.min(1, frog.hop.elapsed / frog.hop.duration);
+      hopAmount = Math.sin(Math.PI * p) * 14;
+      scaleX = 1 + Math.sin(Math.PI * p) * 0.14;
+      scaleY = 1 - Math.sin(Math.PI * p) * 0.10;
+    }
+
+    if (state.mode === "dying") {
+      const fade = Math.max(0, state.timer / 0.78);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(frog.x, frog.y);
+      ctx.rotate(frog.deathSpin);
+      ctx.scale(1.25 - fade * 0.25, 1.25 - fade * 0.25);
+      drawFrogBody(0, 0, 1, 1, true);
+      ctx.restore();
+      return;
+    }
+
+    // A soft shadow prevents the arc from feeling like a teleport.
+    ctx.fillStyle = "rgba(22, 58, 45, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(frog.x, frog.y + 13, 13 - hopAmount * 0.20, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(frog.x, frog.y - hopAmount);
+    ctx.scale(scaleX, scaleY);
+    drawFrogBody(0, 0, 1, 1, false);
+    ctx.restore();
+  }
+
+  function drawFrogBody(x, y, sx, sy, dizzy) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sx, sy);
+
+    // Back feet
+    ctx.fillStyle = "#3f804d";
+    ctx.beginPath();
+    ctx.ellipse(-13, 9, 8, 4, -0.25, 0, Math.PI * 2);
+    ctx.ellipse(13, 9, 8, 4, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body and belly
+    ctx.fillStyle = "#4e9b59";
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 15, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#b9d978";
+    ctx.beginPath();
+    ctx.ellipse(0, 7, 8, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye bumps
+    ctx.fillStyle = "#4e9b59";
+    ctx.beginPath();
+    ctx.arc(-8, -8, 6, 0, Math.PI * 2);
+    ctx.arc(8, -8, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#f7f1c5";
+    ctx.beginPath();
+    ctx.arc(-8, -9, 3.7, 0, Math.PI * 2);
+    ctx.arc(8, -9, 3.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = dizzy ? "#d95b4f" : palette.ink;
+    ctx.beginPath();
+    ctx.arc(-7.2, -9, 1.35, 0, Math.PI * 2);
+    ctx.arc(8.6, -9, 1.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#2d5940";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 5, 5, 0.12 * Math.PI, 0.88 * Math.PI);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of state.particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.life * 8);
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawCenterBanner(title, subtitle, accent = "#d95b4f") {
+    const width = Math.max(260, ctx.measureText(title).width + 120);
+    const x = W / 2 - width / 2;
+    const y = 282;
+    fillRoundedRect(x, y, width, 80, 17, "#f8e7b7", "#295547", 3);
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 18, y + 12, width - 36, 4);
+    drawText(title, W / 2, y + 36, 28, palette.ink, "center");
+    if (subtitle) drawText(subtitle, W / 2, y + 60, 13, "#765044", "center", "700");
+  }
+
+  function drawStatus() {
+    if (state.mode === "ready") {
+      drawCenterBanner("READY?", "Follow the towpath, then trust the river.", "#efad5b");
+    } else if (state.mode === "dying") {
+      drawCenterBanner(state.deathLabel, "Back to the pier in a moment.", "#d95b4f");
+    } else if (state.mode === "home") {
+      drawCenterBanner("HOME FOUND!", "One lantern is lit.", "#4d9b5b");
+    } else if (state.mode === "roundclear") {
+      drawCenterBanner(`ROUND ${state.level} CLEARED!`, "The canal current picks up...", "#4592a1");
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawWorld();
+    drawEntities();
+    drawFrog();
+    drawHeron();
+    drawParticles();
+    drawStatus();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main game loop. Delta time is capped so a sleeping browser tab cannot cause
+  // objects to leap across the screen on return.
+  // ---------------------------------------------------------------------------
+  function loop(now) {
+    const dt = Math.min(0.033, Math.max(0, (now - state.lastFrame) / 1000));
+    state.lastFrame = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Start with a moving title backdrop.
+  setLanes(1);
+  resetHeron();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
