@@ -517,17 +517,57 @@
     if (!direction) return;
 
     event.preventDefault();
-    if (state.mode !== "playing") return;
+    requestDirection(direction);
+  }, { passive: false });
 
+  function requestDirection(direction) {
+    if (state.mode !== "playing") return;
     if (frog.hop) {
       state.inputBuffer = direction;
     } else {
       beginHop(direction);
     }
-  }, { passive: false });
+  }
+
+  // Touch devices have no arrow keys, so a swipe on the canvas is translated
+  // into the same direction objects the keyboard handler uses. A minimum
+  // travel distance avoids misreading taps (e.g. tapping Play) as swipes.
+  const SWIPE_MIN_PX = 24;
+  let touchStartX = null;
+  let touchStartY = null;
+
+  canvas.addEventListener("touchstart", event => {
+    if (event.touches.length !== 1) return;
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+  }, { passive: true });
+
+  canvas.addEventListener("touchend", event => {
+    if (touchStartX === null) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    touchStartX = null;
+    touchStartY = null;
+
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN_PX) return;
+
+    const direction = Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? keyToDirection.ArrowRight : keyToDirection.ArrowLeft)
+      : (dy > 0 ? keyToDirection.ArrowDown : keyToDirection.ArrowUp);
+    requestDirection(direction);
+  }, { passive: true });
 
   function beginHop(direction) {
-    const targetX = frog.x + direction.x * TILE;
+    // Snap to the nearest whole tile first. While riding a river platform,
+    // frog.x drifts continuously (it moves by lane.speed * dt every frame,
+    // just like the platform under it), so by the time a hop starts it is
+    // almost never exactly on a tile multiple. Computing the hop target from
+    // that drifted value would carry the offset into every future hop for
+    // the rest of the life. Snapping here guarantees hops always begin and
+    // end on the clean tile grid, no matter how long the frog just rode.
+    const originX = Math.round((frog.x - TILE / 2) / TILE) * TILE + TILE / 2;
+    const targetX = originX + direction.x * TILE;
     const targetY = frog.y + direction.y * TILE;
     const minY = TOP + TILE / 2;
     const maxY = TOP + (ROWS - 1) * TILE + TILE / 2;
